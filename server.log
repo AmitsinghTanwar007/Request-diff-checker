@@ -1,0 +1,479 @@
+🚀 Server is running on http://localhost:9000
+📨 Ready to receive requests on http://localhost:9000/receive
+🌐 Web UI available at http://localhost:9000
+🔍 All request details will be logged to console
+📝 Stored payment request with ID: payment-123-abc from UCS
+📊 Total requests stored: 1
+⏳ Request payment-123-abc stored as pending for x-request-id: payment-123-abc
+
+================================================================================
+💳 INCOMING PAYMENT REQUEST
+================================================================================
+🕒 Timestamp: 2025-09-25T19:58:22.495Z
+🌐 Method: POST
+📍 URL: /receive
+🔗 Original URL: /receive
+📡 Protocol: http
+🏠 Host: localhost:9000
+🛣️  Path: /receive
+🏷️  Detected Type: PAYMENT REQUEST
+🔄 Via HyperSwitch: Yes
+
+📋 HEADERS:
+----------------------------------------
+  host: localhost:9000
+  user-agent: curl/8.7.1
+  accept: */*
+  content-type: application/json
+  via: HyperSwitch
+  x-request-id: payment-123-abc
+  x-source: ucs
+  x-flow: authorize
+  x-connector: authorizedotnet
+  content-length: 167
+
+🔍 QUERY PARAMETERS:
+----------------------------------------
+  (none)
+
+📦 BODY:
+----------------------------------------
+{
+  "createTransactionRequest": {
+    "refId": "pay_test1",
+    "transactionRequest": {
+      "amount": 100,
+      "currencyCode": "USD"
+    }
+  }
+}
+
+🌍 CLIENT INFO:
+----------------------------------------
+  IP: ::1
+  User-Agent: curl/8.7.1
+  Content-Type: application/json
+  Content-Length: 167
+
+================================================================================
+✅ PAYMENT REQUEST LOGGED
+================================================================================
+
+📝 Stored payment request with ID: payment-123-abc from HyperSwitch
+📊 Total requests stored: 2
+👥 Created request pair by x-request-id: pair_payment-123-abc_1758830313831
+🌊 Flow: authorize
+🔌 Connector: authorizedotnet
+📊 UCS vs HyperSwitch: UCS vs HyperSwitch
+📊 Total pairs: 1
+🎯 New pair available for comparison: pair_payment-123-abc_1758830313831
+
+================================================================================
+💳 INCOMING PAYMENT REQUEST
+================================================================================
+🕒 Timestamp: 2025-09-25T19:58:33.830Z
+🌐 Method: POST
+📍 URL: /receive
+🔗 Original URL: /receive
+📡 Protocol: http
+🏠 Host: localhost:9000
+🛣️  Path: /receive
+🏷️  Detected Type: PAYMENT REQUEST
+🔄 Via HyperSwitch: Yes
+
+📋 HEADERS:
+----------------------------------------
+  host: localhost:9000
+  user-agent: curl/8.7.1
+  accept: */*
+  content-type: application/json
+  via: HyperSwitch
+  x-request-id: payment-123-abc
+  x-flow: authorize
+  x-connector: authorizedotnet
+  content-length: 167
+
+🔍 QUERY PARAMETERS:
+----------------------------------------
+  (none)
+
+📦 BODY:
+----------------------------------------
+{
+  "createTransactionRequest": {
+    "refId": "pay_test1",
+    "transactionRequest": {
+      "amount": 100,
+      "currencyCode": "USD"
+    }
+  }
+}
+
+🌍 CLIENT INFO:
+----------------------------------------
+  IP: ::1
+  User-Agent: curl/8.7.1
+  Content-Type: application/json
+  Content-Length: 167
+
+================================================================================
+✅ PAYMENT REQUEST LOGGED
+================================================================================
+
+📝 Stored payment request with ID: payment-456-xyz from UCS
+📊 Total requests stored: 3
+⏳ Request payment-456-xyz stored as pending for x-request-id: payment-456-xyz
+
+================================================================================
+💳 INCOMING PAYMENT REQUEST
+================================================================================
+🕒 Timestamp: 2025-09-25T19:58:54.359Z
+🌐 Method: POST
+📍 URL: /receive
+🔗 Original URL: /receive
+📡 Protocol: http
+🏠 Host: localhost:9000
+🛣️  Path: /receive
+🏷️  Detected Type: PAYMENT REQUEST
+🔄 Via HyperSwitch: Yes
+
+📋 HEADERS:
+----------------------------------------
+  host: localhost:9000
+  user-agent: curl/8.7.1
+  accept: */*
+  content-type: application/json
+  via: HyperSwitch
+  x-request-id: payment-456-xyz
+  x-source: ucs
+  x-flow: stripe
+  content-length: 167
+
+🔍 QUERY PARAMETERS:
+----------------------------------------
+  (none)
+
+📦 BODY:
+----------------------------------------
+{
+  "createTransactionRequest": {
+    "refId": "pay_test2",
+    "transactionRequest": {
+      "amount": 200,
+      "currencyCode": "USD"
+    }
+  }
+}
+
+🌍 CLIENT INFO:
+----------------------------------------
+  IP: ::1
+  User-Agent: curl/8.7.1
+  Content-Type: application/json
+  Content-Length: 167
+
+================================================================================
+✅ PAYMENT REQUEST LOGGED
+================================================================================
+
+🧹 All data cleared
+📝 Stored payment request with ID: 01998276-fee7-7702-9cb3-f049c20810e2 from UCS
+📊 Total requests stored: 1
+⏳ Request 01998276-fee7-7702-9cb3-f049c20810e2 stored as pending for x-request-id: 01998276-fee7-7702-9cb3-f049c20810e2
+
+================================================================================
+💳 INCOMING PAYMENT REQUEST
+================================================================================
+🕒 Timestamp: 2025-09-25T20:01:01.860Z
+🌐 Method: POST
+📍 URL: /receive
+🔗 Original URL: /receive
+📡 Protocol: http
+🏠 Host: apitest.authorize.net
+🛣️  Path: /receive
+🏷️  Detected Type: PAYMENT REQUEST
+🔄 Via HyperSwitch: Yes
+
+📋 HEADERS:
+----------------------------------------
+  user-agent: python-requests/2.32.5
+  accept-encoding: gzip
+  accept: */*
+  connection: keep-alive
+  content-type: application/json
+  x-request-id: 01998276-fee7-7702-9cb3-f049c20810e2
+  via: HyperSwitch
+  x-source: connector-service
+  x-connector: authorizedotnet
+  x-flow: authorize
+  host: apitest.authorize.net
+  content-length: 715
+
+🔍 QUERY PARAMETERS:
+----------------------------------------
+  (none)
+
+📦 BODY:
+----------------------------------------
+{
+  "createTransactionRequest": {
+    "merchantAuthentication": {
+      "name": "9ARWr5wz49D3",
+      "transactionKey": "3d9SHV2699mgmHre"
+    },
+    "refId": "pay_Kvvlp5Jcwd7apxRC",
+    "transactionRequest": {
+      "transactionType": "authCaptureTransaction",
+      "amount": 65.4,
+      "currencyCode": "USD",
+      "payment": {
+        "creditCard": {
+          "cardNumber": "5123456789012346",
+          "expirationDate": "2030-03",
+          "cardCode": "100"
+        }
+      },
+      "order": {
+        "invoiceNumber": "pay_Kvvlp5Jcwd7apxRC",
+        "description": "Payment"
+      },
+      "billTo": {
+        "firstName": "Joseph",
+        "lastName": "Doe",
+        "address": "1467",
+        "city": "San Fransico",
+        "state": "California",
+        "zip": "94122",
+        "country": "US"
+      },
+      "userFields": {
+        "userField": [
+          {
+            "name": "login_date",
+            "value": "2019-09-10T10:11:12Z"
+          },
+          {
+            "name": "new_customer",
+            "value": "true"
+          },
+          {
+            "name": "udf1",
+            "value": "value1"
+          }
+        ]
+      }
+    }
+  }
+}
+
+🌍 CLIENT INFO:
+----------------------------------------
+  IP: ::1
+  User-Agent: python-requests/2.32.5
+  Content-Type: application/json
+  Content-Length: 715
+
+================================================================================
+✅ PAYMENT REQUEST LOGGED
+================================================================================
+
+📝 Stored payment request with ID: 0199827a-2fdc-75a3-bc7e-cbb81e6ec19f from UCS
+📊 Total requests stored: 2
+⏳ Request 0199827a-2fdc-75a3-bc7e-cbb81e6ec19f stored as pending for x-request-id: 0199827a-2fdc-75a3-bc7e-cbb81e6ec19f
+
+================================================================================
+💳 INCOMING PAYMENT REQUEST
+================================================================================
+🕒 Timestamp: 2025-09-25T20:04:31.041Z
+🌐 Method: POST
+📍 URL: /receive
+🔗 Original URL: /receive
+📡 Protocol: http
+🏠 Host: apitest.authorize.net
+🛣️  Path: /receive
+🏷️  Detected Type: PAYMENT REQUEST
+🔄 Via HyperSwitch: Yes
+
+📋 HEADERS:
+----------------------------------------
+  user-agent: python-requests/2.32.5
+  accept-encoding: gzip
+  accept: */*
+  connection: keep-alive
+  content-type: application/json
+  x-source: connector-service
+  x-flow: authorize
+  x-connector: authorizedotnet
+  x-request-id: 0199827a-2fdc-75a3-bc7e-cbb81e6ec19f
+  via: HyperSwitch
+  host: apitest.authorize.net
+  content-length: 715
+
+🔍 QUERY PARAMETERS:
+----------------------------------------
+  (none)
+
+📦 BODY:
+----------------------------------------
+{
+  "createTransactionRequest": {
+    "merchantAuthentication": {
+      "name": "9ARWr5wz49D3",
+      "transactionKey": "3d9SHV2699mgmHre"
+    },
+    "refId": "pay_ly9hBZJ1YzpxJud5",
+    "transactionRequest": {
+      "transactionType": "authCaptureTransaction",
+      "amount": 65.4,
+      "currencyCode": "USD",
+      "payment": {
+        "creditCard": {
+          "cardNumber": "5123456789012346",
+          "expirationDate": "2030-03",
+          "cardCode": "100"
+        }
+      },
+      "order": {
+        "invoiceNumber": "pay_ly9hBZJ1YzpxJud5",
+        "description": "Payment"
+      },
+      "billTo": {
+        "firstName": "Joseph",
+        "lastName": "Doe",
+        "address": "1467",
+        "city": "San Fransico",
+        "state": "California",
+        "zip": "94122",
+        "country": "US"
+      },
+      "userFields": {
+        "userField": [
+          {
+            "name": "login_date",
+            "value": "2019-09-10T10:11:12Z"
+          },
+          {
+            "name": "new_customer",
+            "value": "true"
+          },
+          {
+            "name": "udf1",
+            "value": "value1"
+          }
+        ]
+      }
+    }
+  }
+}
+
+🌍 CLIENT INFO:
+----------------------------------------
+  IP: ::1
+  User-Agent: python-requests/2.32.5
+  Content-Type: application/json
+  Content-Length: 715
+
+================================================================================
+✅ PAYMENT REQUEST LOGGED
+================================================================================
+
+📝 Stored payment request with ID: 0199827b-5ce9-7cf2-a14b-5a597fe64310 from UCS
+📊 Total requests stored: 3
+⏳ Request 0199827b-5ce9-7cf2-a14b-5a597fe64310 stored as pending for x-request-id: 0199827b-5ce9-7cf2-a14b-5a597fe64310
+
+================================================================================
+💳 INCOMING PAYMENT REQUEST
+================================================================================
+🕒 Timestamp: 2025-09-25T20:05:46.939Z
+🌐 Method: POST
+📍 URL: /receive
+🔗 Original URL: /receive
+📡 Protocol: http
+🏠 Host: apitest.authorize.net
+🛣️  Path: /receive
+🏷️  Detected Type: PAYMENT REQUEST
+🔄 Via HyperSwitch: Yes
+
+📋 HEADERS:
+----------------------------------------
+  user-agent: python-requests/2.32.5
+  accept-encoding: gzip
+  accept: */*
+  connection: keep-alive
+  content-type: application/json
+  x-flow: authorize
+  via: HyperSwitch
+  x-connector: authorizedotnet
+  x-request-id: 0199827b-5ce9-7cf2-a14b-5a597fe64310
+  x-source: connector-service
+  host: apitest.authorize.net
+  content-length: 715
+
+🔍 QUERY PARAMETERS:
+----------------------------------------
+  (none)
+
+📦 BODY:
+----------------------------------------
+{
+  "createTransactionRequest": {
+    "merchantAuthentication": {
+      "name": "9ARWr5wz49D3",
+      "transactionKey": "3d9SHV2699mgmHre"
+    },
+    "refId": "pay_H37C0FROg28PdZ25",
+    "transactionRequest": {
+      "transactionType": "authCaptureTransaction",
+      "amount": 65.4,
+      "currencyCode": "USD",
+      "payment": {
+        "creditCard": {
+          "cardNumber": "5123456789012346",
+          "expirationDate": "2030-03",
+          "cardCode": "100"
+        }
+      },
+      "order": {
+        "invoiceNumber": "pay_H37C0FROg28PdZ25",
+        "description": "Payment"
+      },
+      "billTo": {
+        "firstName": "Joseph",
+        "lastName": "Doe",
+        "address": "1467",
+        "city": "San Fransico",
+        "state": "California",
+        "zip": "94122",
+        "country": "US"
+      },
+      "userFields": {
+        "userField": [
+          {
+            "name": "login_date",
+            "value": "2019-09-10T10:11:12Z"
+          },
+          {
+            "name": "new_customer",
+            "value": "true"
+          },
+          {
+            "name": "udf1",
+            "value": "value1"
+          }
+        ]
+      }
+    }
+  }
+}
+
+🌍 CLIENT INFO:
+----------------------------------------
+  IP: ::1
+  User-Agent: python-requests/2.32.5
+  Content-Type: application/json
+  Content-Length: 715
+
+================================================================================
+✅ PAYMENT REQUEST LOGGED
+================================================================================
+

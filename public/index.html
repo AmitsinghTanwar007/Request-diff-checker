@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment Request Comparator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: #2196F3;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            padding: 15px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2196F3;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .content {
+            padding: 20px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .btn-primary {
+            background: #2196F3;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #f44336;
+            color: white;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+        }
+
+        .pair-card {
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+        }
+
+        .pair-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .pair-id {
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        .pair-info {
+            font-size: 12px;
+            color: #666;
+            margin: 5px 0;
+        }
+
+        .badge {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+            margin-left: 5px;
+        }
+
+        .badge-flow {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .badge-connector {
+            background: #fff3e0;
+            color: #f57722;
+        }
+
+        .badge-ucs {
+            background: #e8f5e8;
+            color: #2e7d32;
+        }
+
+        .badge-hs {
+            background: #f3e5f5;
+            color: #7b1fa2;
+        }
+
+        .requests {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin: 10px 0;
+        }
+
+        .request {
+            border: 1px solid #eee;
+            border-radius: 4px;
+            padding: 10px;
+            background: #fafafa;
+        }
+
+        .request-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+
+        .request-details {
+            font-size: 12px;
+            color: #666;
+            font-family: monospace;
+        }
+
+        .compare-btn {
+            width: 100%;
+            padding: 10px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+
+        .compare-btn:hover {
+            background: #45a049;
+        }
+
+        .compare-btn.viewed {
+            background: #2196F3;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 0;
+            padding: 0;
+            border-radius: 0;
+            width: 100vw;
+            height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+            overflow: hidden;
+        }
+
+        .modal-header {
+            background: #2196F3;
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .close {
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            background: none;
+            border: none;
+        }
+
+        .modal-body {
+            padding: 20px;
+            height: calc(100vh - 80px);
+            overflow-y: auto;
+            background: #f8f9fa;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            flex: 1;
+            min-height: 0;
+        }
+
+        .json-viewer {
+            background: #1e1e1e;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 20px;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 12px;
+            overflow-y: auto;
+            overflow-x: auto;
+            color: #d4d4d4;
+            line-height: 1.4;
+            position: relative;
+            height: calc(100vh - 300px);
+        }
+
+        .json-viewer pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        /* JSON Field Comparison Highlighting */
+        .json-line-matching {
+            background: rgba(40, 167, 69, 0.15) !important;
+            border-radius: 3px;
+            padding: 2px 4px;
+            margin: 1px 0;
+        }
+
+        .json-line-different {
+            background: rgba(220, 53, 69, 0.15) !important;
+            border-radius: 3px;
+            padding: 2px 4px;
+            margin: 1px 0;
+        }
+
+        .json-line-extra {
+            background: rgba(255, 193, 7, 0.15) !important;
+            border-radius: 3px;
+            padding: 2px 4px;
+            margin: 1px 0;
+        }
+
+        .json-line-missing {
+            background: rgba(108, 117, 125, 0.15) !important;
+            border-radius: 3px;
+            padding: 2px 4px;
+            margin: 1px 0;
+            opacity: 0.7;
+        }
+
+        /* Inline field highlighting */
+        .field-highlight-matching {
+            background: rgba(40, 167, 69, 0.3);
+            border-radius: 2px;
+            padding: 1px 2px;
+        }
+
+        .field-highlight-different {
+            background: rgba(220, 53, 69, 0.3);
+            border-radius: 2px;
+            padding: 1px 2px;
+        }
+
+        .field-highlight-extra {
+            background: rgba(255, 193, 7, 0.3);
+            border-radius: 2px;
+            padding: 1px 2px;
+        }
+
+        .field-highlight-missing {
+            background: rgba(108, 117, 125, 0.3);
+            border-radius: 2px;
+            padding: 1px 2px;
+        }
+
+        /* Icons for field status */
+        .field-icon {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            margin-right: 4px;
+            font-size: 11px;
+            text-align: center;
+            border-radius: 2px;
+            font-weight: bold;
+        }
+
+        .icon-match { background: #28a745; color: white; }
+        .icon-diff { background: #dc3545; color: white; }
+        .icon-extra { background: #ffc107; color: black; }
+        .icon-missing { background: #6c757d; color: white; }
+
+        /* Tooltip styles */
+        .json-tooltip {
+            position: relative;
+            cursor: help;
+        }
+
+        .json-tooltip .tooltip-text {
+            visibility: hidden;
+            width: 200px;
+            background-color: #333;
+            color: #fff;
+            text-align: left;
+            border-radius: 4px;
+            padding: 8px;
+            position: absolute;
+            z-index: 1000;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -100px;
+            font-size: 11px;
+            line-height: 1.3;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .json-tooltip:hover .tooltip-text {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        /* Value change display */
+        .value-change {
+            font-style: italic;
+            color: #ffc107;
+        }
+
+        .value-old {
+            color: #dc3545;
+            text-decoration: line-through;
+        }
+
+        .value-new {
+            color: #28a745;
+            font-weight: bold;
+        }
+
+        .json-title {
+            font-weight: bold;
+            margin-bottom: 15px;
+            font-family: Arial, sans-serif;
+            font-size: 16px;
+            color: #333;
+            padding: 8px 12px;
+            background: #f0f0f0;
+            border-radius: 4px;
+            border-left: 4px solid #2196F3;
+        }
+
+        .comparison-overview {
+            grid-column: 1 / -1;
+            background: #fff;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            flex-shrink: 0;
+        }
+
+        .overview-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 10px;
+            margin: 10px 0;
+        }
+
+        .stat-box {
+            text-align: center;
+            padding: 10px;
+            border-radius: 6px;
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .identical { color: #28a745; }
+        .different { color: #dc3545; }
+
+        .differences-summary {
+            margin-top: 20px;
+        }
+
+        .diff-section {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 10px;
+        }
+
+        .diff-section h4 {
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .diff-list {
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .diff-item {
+            padding: 5px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .diff-item:last-child {
+            border-bottom: none;
+        }
+
+        @media (max-width: 768px) {
+            .requests {
+                grid-template-columns: 1fr;
+            }
+            
+            .comparison {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Payment Request Comparator</h1>
+            <p>Compare HyperSwitch payment requests</p>
+        </div>
+
+        <div class="stats">
+            <div class="stat">
+                <div class="stat-number" id="totalPairs">0</div>
+                <div class="stat-label">Total Pairs</div>
+            </div>
+            <div class="stat">
+                <div class="stat-number" id="comparedPairs">0</div>
+                <div class="stat-label">Compared</div>
+            </div>
+            <div class="stat">
+                <div class="stat-number" id="pendingPairs">0</div>
+                <div class="stat-label">Pending</div>
+            </div>
+        </div>
+
+        <div class="content">
+            <div class="controls">
+                <button class="btn btn-primary" onclick="loadPairs()">🔄 Refresh</button>
+                <button class="btn btn-danger" onclick="clearAll()">🗑️ Clear All</button>
+            </div>
+            
+            <div id="pairsContainer">
+                <!-- Pairs will be loaded here -->
+            </div>
+
+            <div id="emptyState" class="empty-state" style="display: none;">
+                <h3>No pairs found</h3>
+                <p>Send payment requests to create pairs for comparison</p>
+                <button class="btn btn-primary" onclick="loadPairs()" style="margin-top: 15px;">🔄 Refresh</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Comparison Modal -->
+    <div id="comparisonModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Comparison Result</h2>
+                <button class="close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="comparisonContent" class="comparison">
+                    <!-- Comparison content will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let pairs = [];
+
+        async function loadPairs() {
+            try {
+                const response = await fetch('/api/pairs');
+                pairs = await response.json();
+                updateStats();
+                renderPairs();
+            } catch (error) {
+                console.error('Error loading pairs:', error);
+            }
+        }
+
+        function updateStats() {
+            const total = pairs.length;
+            const compared = pairs.filter(p => p.compared).length;
+            const pending = total - compared;
+
+            document.getElementById('totalPairs').textContent = total;
+            document.getElementById('comparedPairs').textContent = compared;
+            document.getElementById('pendingPairs').textContent = pending;
+        }
+
+        function renderPairs() {
+            const container = document.getElementById('pairsContainer');
+            const emptyState = document.getElementById('emptyState');
+
+            if (pairs.length === 0) {
+                container.style.display = 'none';
+                emptyState.style.display = 'block';
+                return;
+            }
+
+            container.style.display = 'block';
+            emptyState.style.display = 'none';
+
+            container.innerHTML = pairs.map(pair => {
+                const req1 = pair.request1;
+                const req2 = pair.request2;
+                const source1 = pair.sources?.request1 || 'Unknown';
+                const source2 = pair.sources?.request2 || 'Unknown';
+                
+                return `
+                    <div class="pair-card">
+                        <div class="pair-header">
+                            <div>
+                                <div class="pair-id">${pair.id}</div>
+                                <div class="pair-info">
+                                    ${pair.xRequestId ? `Request ID: ${pair.xRequestId}` : 'Auto-paired'}
+                                    ${pair.xFlow ? `<span class="badge badge-flow">🌊 ${pair.xFlow}</span>` : ''}
+                                    ${pair.xConnector ? `<span class="badge badge-connector">🔌 ${pair.xConnector}</span>` : ''}
+                                </div>
+                                <div class="pair-info">Created: ${new Date(pair.createdAt).toLocaleString()}</div>
+                            </div>
+                            <div>
+                                <span class="badge ${pair.compared ? 'badge-ucs' : 'badge-connector'}">${pair.compared ? 'Compared' : 'Pending'}</span>
+                            </div>
+                        </div>
+
+                        <div class="requests">
+                            <div class="request">
+                                <div class="request-title">
+                                    Request 1 <span class="badge ${source1.toLowerCase() === 'ucs' ? 'badge-ucs' : 'badge-hs'}">${source1}</span>
+                                </div>
+                                <div class="request-details">
+                                    Method: ${req1.method}<br>
+                                    Time: ${new Date(req1.timestamp).toLocaleTimeString()}<br>
+                                    Amount: $${req1.body?.createTransactionRequest?.transactionRequest?.amount || 'N/A'}
+                                </div>
+                            </div>
+                            <div class="request">
+                                <div class="request-title">
+                                    Request 2 <span class="badge ${source2.toLowerCase() === 'ucs' ? 'badge-ucs' : 'badge-hs'}">${source2}</span>
+                                </div>
+                                <div class="request-details">
+                                    Method: ${req2.method}<br>
+                                    Time: ${new Date(req2.timestamp).toLocaleTimeString()}<br>
+                                    Amount: $${req2.body?.createTransactionRequest?.transactionRequest?.amount || 'N/A'}
+                                </div>
+                            </div>
+                        </div>
+
+                        <button class="compare-btn ${pair.compared ? 'viewed' : ''}" onclick="comparePair('${pair.id}')">
+                            ${pair.compared ? '👁️ View Comparison' : '🔍 Compare'}
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function comparePair(pairId) {
+            try {
+                const response = await fetch(`/api/pairs/${pairId}/compare`, {
+                    method: 'POST'
+                });
+                const result = await response.json();
+                
+                showComparisonModal(result);
+                await loadPairs();
+            } catch (error) {
+                console.error('Error comparing pair:', error);
+                alert('Error comparing pair. Please try again.');
+            }
+        }
+
+        function showComparisonModal(result) {
+            const modal = document.getElementById('comparisonModal');
+            const title = document.getElementById('modalTitle');
+            const content = document.getElementById('comparisonContent');
+
+            const titleParts = [];
+            if (result.pair.xRequestId) titleParts.push(`Request ID: ${result.pair.xRequestId}`);
+            if (result.pair.xConnector) titleParts.push(`Connector: ${result.pair.xConnector}`);
+            title.textContent = titleParts.join(' - ');
+
+            const req1Source = result.pair.sources?.request1 || 'Unknown';
+            const req2Source = result.pair.sources?.request2 || 'Unknown';
+            const summary = result.comparison.summary;
+            const metadata = result.comparison.metadata;
+            const headers = result.comparison.headers;
+            const body = result.comparison.body;
+
+            // Enhanced JSON formatting with colored field highlighting
+            function formatJSONWithComparison(obj, comparisonData, isRequest1) {
+                try {
+                    const jsonStr = JSON.stringify(obj, null, 2);
+                    const lines = jsonStr.split('\n');
+                    
+                    // Build field status maps
+                    const differences = [...(headers.differences || []), ...(body.differences || [])];
+                    const onlyInReq1 = [...(headers.onlyInRequest1 || []), ...(body.onlyInRequest1 || [])];
+                    const onlyInReq2 = [...(headers.onlyInRequest2 || []), ...(body.onlyInRequest2 || [])];
+                    const matching = [...(headers.matching || [])];
+                    
+                    // Fields to ignore in comparison highlighting
+                    const ignoredFields = ['x-request-id', 'x-connector', 'x-flow'];
+                    
+                    // Create lookup maps for field status
+                    const fieldStatusMap = new Map();
+                    
+                    // Skip matching fields - no highlighting for matching fields
+                    
+                    // Add different fields (excluding ignored fields)
+                    differences.forEach(diff => {
+                        const fieldName = diff.path.split('.').pop();
+                        if (fieldName && !ignoredFields.includes(fieldName)) {
+                            fieldStatusMap.set(fieldName, 'different');
+                        }
+                    });
+                    
+                    // Add extra fields (only in this request, excluding ignored fields)
+                    const extraFields = isRequest1 ? onlyInReq1 : onlyInReq2;
+                    extraFields.forEach(field => {
+                        const fieldName = field.path.split('.').pop();
+                        if (fieldName && !ignoredFields.includes(fieldName)) {
+                            fieldStatusMap.set(fieldName, 'extra');
+                        }
+                    });
+                    
+                    // Process each line
+                    const processedLines = lines.map(line => {
+                        let processedLine = line;
+                        
+                        // Apply basic syntax highlighting
+                        processedLine = processedLine
+                            .replace(/(".*?")\s*:/g, '<span style="color: #9cdcfe;">$1</span>:')
+                            .replace(/:\s*(".*?")/g, ': <span style="color: #ce9178;">$1</span>')
+                            .replace(/:\s*(true|false)/g, ': <span style="color: #569cd6;">$1</span>')
+                            .replace(/:\s*(null)/g, ': <span style="color: #569cd6;">$1</span>')
+                            .replace(/:\s*(\d+\.?\d*)/g, ': <span style="color: #b5cea8;">$1</span>');
+                        
+                        // Check if this line contains a field we want to highlight
+                        const fieldMatch = line.match(/"([^"]+)":/);
+                        if (fieldMatch) {
+                            const fieldName = fieldMatch[1];
+                            const status = fieldStatusMap.get(fieldName);
+                            
+                            if (status) {
+                                let icon = '';
+                                let wrapperClass = '';
+                                
+                                switch (status) {
+                                    case 'different':
+                                        icon = '<span class="field-icon icon-diff">≠</span>';
+                                        wrapperClass = 'json-line-different';
+                                        break;
+                                    case 'extra':
+                                        icon = '<span class="field-icon icon-extra">+</span>';
+                                        wrapperClass = 'json-line-extra';
+                                        break;
+                                }
+                                
+                                // Wrap the entire line with background color and add icon
+                                processedLine = `<div class="${wrapperClass}">${icon} ${processedLine}</div>`;
+                            }
+                        }
+                        
+                        return processedLine;
+                    });
+                    
+                    // Add missing fields at the end (excluding ignored fields)
+                    const missingFields = isRequest1 ? onlyInReq2 : onlyInReq1;
+                    missingFields.forEach(field => {
+                        const fieldName = field.path.split('.').pop();
+                        if (fieldName && !ignoredFields.includes(fieldName)) {
+                            processedLines.push(`<div class="json-line-missing"><span class="field-icon icon-missing">−</span> <span style="color: #888; font-style: italic;">"${fieldName}": missing in this request</span></div>`);
+                        }
+                    });
+                    
+                    return processedLines.join('\n');
+                } catch (error) {
+                    console.error('Error formatting JSON:', error);
+                    return formatJSON(obj);
+                }
+            }
+            
+            // Fallback simple JSON formatting
+            function formatJSON(obj) {
+                return JSON.stringify(obj, null, 2)
+                    .replace(/(".*?")\s*:/g, '<span style="color: #9cdcfe;">$1</span>:')
+                    .replace(/:\s*(".*?")/g, ': <span style="color: #ce9178;">$1</span>')
+                    .replace(/:\s*(true|false)/g, ': <span style="color: #569cd6;">$1</span>')
+                    .replace(/:\s*(null)/g, ': <span style="color: #569cd6;">$1</span>')
+                    .replace(/:\s*(\d+)/g, ': <span style="color: #b5cea8;">$1</span>');
+            }
+
+            // Build differences summary
+            let diffSummaryHtml = '';
+            const allDiffs = [];
+            
+            // Metadata differences
+            if (!metadata.method.match) allDiffs.push(`Method: ${metadata.method.request1} → ${metadata.method.request2}`);
+            if (!metadata.url.match) allDiffs.push(`URL: ${metadata.url.request1} → ${metadata.url.request2}`);
+            if (!metadata.type.match) allDiffs.push(`Type: ${metadata.type.request1} → ${metadata.type.request2}`);
+            
+            // Header differences
+            headers.differences.forEach(diff => {
+                allDiffs.push(`Header ${diff.path.replace('headers.', '')}: "${diff.request1}" → "${diff.request2}"`);
+            });
+            
+            // Body differences
+            body.differences.slice(0, 10).forEach(diff => {
+                allDiffs.push(`Body ${diff.path.replace('body.', '')}: "${diff.request1}" → "${diff.request2}"`);
+            });
+
+            if (allDiffs.length > 0) {
+                diffSummaryHtml = `
+                    <div class="differences-summary">
+                        <div class="diff-section">
+                            <h4>Key Differences Found (${allDiffs.length} total)</h4>
+                            <div class="diff-list">
+                                ${allDiffs.slice(0, 15).map(diff => `<div class="diff-item">${diff}</div>`).join('')}
+                                ${allDiffs.length > 15 ? `<div class="diff-item"><em>... and ${allDiffs.length - 15} more differences</em></div>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            content.innerHTML = `
+                <div class="comparison-overview">
+                    <div class="overview-title">Comparison Overview</div>
+                    
+                    <div class="stats-grid">
+                        <div class="stat-box">
+                            <div class="stat-value ${summary.identical ? 'identical' : 'different'}">
+                                ${summary.identical ? 'IDENTICAL' : 'DIFFERENT'}
+                            </div>
+                            <div class="stat-label">Overall Match</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-value">${summary.matchPercentage}%</div>
+                            <div class="stat-label">Match Percentage</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-value">${summary.totalFields}</div>
+                            <div class="stat-label">Total Fields</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-value">${summary.timeDifference}ms</div>
+                            <div class="stat-label">Time Difference</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-value identical">${summary.matchingFields}</div>
+                            <div class="stat-label">Matching</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-value different">${summary.differentFields}</div>
+                            <div class="stat-label">Different</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-value" style="color: #ff9800;">${summary.onlyInRequest1}</div>
+                            <div class="stat-label">Only in ${req1Source}</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-value" style="color: #9c27b0;">${summary.onlyInRequest2}</div>
+                            <div class="stat-label">Only in ${req2Source}</div>
+                        </div>
+                    </div>
+
+                    ${diffSummaryHtml}
+                </div>
+
+                <div class="json-viewer">
+                    <div class="json-title">Request 1 - ${req1Source} ${result.pair.request1.headers['x-flow'] ? `Flow: ${result.pair.request1.headers['x-flow']}` : ''}</div>
+                    <div style="font-size: 11px; color: #999; margin-bottom: 10px; padding: 5px; background: rgba(255,255,255,0.1); border-radius: 3px;">
+                        <span style="background: rgba(220, 53, 69, 0.3); padding: 1px 4px; border-radius: 2px;">Red = Different</span>
+                        <span style="background: rgba(255, 193, 7, 0.3); padding: 1px 4px; border-radius: 2px; margin-left: 5px;">Yellow = Extra</span>
+                        <span style="background: rgba(108, 117, 125, 0.3); padding: 1px 4px; border-radius: 2px; margin-left: 5px;">Gray = Missing</span>
+                    </div>
+                    <pre>${formatJSONWithComparison({
+                        timestamp: result.pair.request1.timestamp,
+                        method: result.pair.request1.method,
+                        url: result.pair.request1.url,
+                        headers: result.pair.request1.headers,
+                        body: result.pair.request1.body
+                    }, result.comparison, true)}</pre>
+                </div>
+                <div class="json-viewer">
+                    <div class="json-title">Request 2 - ${req2Source} ${result.pair.request2.headers['x-flow'] ? `Flow: ${result.pair.request2.headers['x-flow']}` : ''}</div>
+                    <div style="font-size: 11px; color: #999; margin-bottom: 10px; padding: 5px; background: rgba(255,255,255,0.1); border-radius: 3px;">
+                        <span style="background: rgba(220, 53, 69, 0.3); padding: 1px 4px; border-radius: 2px;">Red = Different</span>
+                        <span style="background: rgba(255, 193, 7, 0.3); padding: 1px 4px; border-radius: 2px; margin-left: 5px;">Yellow = Extra</span>
+                        <span style="background: rgba(108, 117, 125, 0.3); padding: 1px 4px; border-radius: 2px; margin-left: 5px;">Gray = Missing</span>
+                    </div>
+                    <pre>${formatJSONWithComparison({
+                        timestamp: result.pair.request2.timestamp,
+                        method: result.pair.request2.method,
+                        url: result.pair.request2.url,
+                        headers: result.pair.request2.headers,
+                        body: result.pair.request2.body
+                    }, result.comparison, false)}</pre>
+                </div>
+            `;
+
+            modal.style.display = 'block';
+        }
+
+        function closeModal() {
+            document.getElementById('comparisonModal').style.display = 'none';
+        }
+
+        window.onclick = function(event) {
+            const modal = document.getElementById('comparisonModal');
+            if (event.target === modal) {
+                closeModal();
+            }
+        }
+
+        async function clearAll() {
+            if (!confirm('Clear all data?')) return;
+            
+            try {
+                await fetch('/api/clear', { method: 'DELETE' });
+                alert('✅ Data cleared');
+                loadPairs();
+            } catch (error) {
+                alert('❌ Error: ' + error.message);
+            }
+        }
+
+        // Load pairs on page load
+        loadPairs();
+
+        // Auto-refresh every 30 seconds
+        setInterval(loadPairs, 30000);
+    </script>
+</body>
+</html>
