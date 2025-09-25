@@ -374,7 +374,7 @@ function generateRequestComparisonReport(request1, request2) {
   report.headers.onlyInRequest2 = headerComparison.onlyInSecond;
   
   // Identify matching headers (excluding ignored fields)
-  const ignoredFields = ['x-request-id', 'x-connector', 'x-flow'];
+  const ignoredFields = ['x-request-id', 'x-connector', 'x-flow', 'x-source'];
   Object.keys(request1.headers || {}).forEach(key => {
     if (!ignoredFields.includes(key) && (request2.headers || {})[key] === request1.headers[key]) {
       report.headers.matching.push({
@@ -507,7 +507,7 @@ function deepCompare(obj1, obj2, path) {
   };
   
   // Fields to ignore in comparison
-  const ignoredFields = ['x-request-id', 'x-connector', 'x-flow'];
+  const ignoredFields = ['x-request-id', 'x-connector', 'x-flow', 'x-source'];
   
   // Get all unique keys from both objects, excluding ignored fields
   const allKeys = new Set([
