@@ -224,12 +224,14 @@
         }
 
         .modal-header {
-            background: #2196F3;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            padding: 15px 20px;
+            padding: 20px 30px;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
         }
 
         .close {
@@ -242,10 +244,10 @@
         }
 
         .modal-body {
-            padding: 20px;
-            height: calc(100vh - 80px);
+            padding: 25px;
+            height: calc(100vh - 95px);
             overflow-y: auto;
-            background: #f8f9fa;
+            background: linear-gradient(145deg, #f8f9fa 0%, #e9ecef 100%);
             display: flex;
             flex-direction: column;
         }
@@ -259,18 +261,20 @@
         }
 
         .json-viewer {
-            background: #1e1e1e;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            padding: 20px;
+            background: linear-gradient(145deg, #1e1e1e 0%, #252525 100%);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 15px;
+            padding: 25px;
             font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
             font-size: 12px;
             overflow-y: auto;
             overflow-x: auto;
             color: #d4d4d4;
-            line-height: 1.4;
+            line-height: 1.5;
             position: relative;
-            height: calc(100vh - 300px);
+            height: calc(100vh - 320px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+            backdrop-filter: blur(10px);
         }
 
         .json-viewer pre {
@@ -398,60 +402,102 @@
         }
 
         .json-title {
-            font-weight: bold;
-            margin-bottom: 15px;
-            font-family: Arial, sans-serif;
-            font-size: 16px;
-            color: #333;
-            padding: 8px 12px;
-            background: #f0f0f0;
-            border-radius: 4px;
-            border-left: 4px solid #2196F3;
+            font-weight: 700;
+            margin-bottom: 20px;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            font-size: 18px;
+            color: #fff;
+            padding: 15px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 10px;
+            border: none;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+            text-shadow: 0 1px 2px rgba(0,0,0,0.3);
         }
 
         .comparison-overview {
             grid-column: 1 / -1;
-            background: #fff;
-            border: 2px solid #e9ecef;
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 15px;
+            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+            border: 1px solid rgba(0,0,0,0.08);
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
             flex-shrink: 0;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.08);
+            backdrop-filter: blur(10px);
         }
 
         .overview-title {
-            font-size: 18px;
-            font-weight: bold;
-            margin-bottom: 15px;
-            color: #333;
+            font-size: 22px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            color: #2c3e50;
+            text-align: center;
+            position: relative;
+        }
+
+        .overview-title::after {
+            content: '';
+            position: absolute;
+            bottom: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80px;
+            height: 3px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 2px;
         }
 
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-            gap: 10px;
-            margin: 10px 0;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 15px;
+            margin: 25px 0;
         }
 
         .stat-box {
             text-align: center;
-            padding: 10px;
-            border-radius: 6px;
-            background: #f8f9fa;
-            border: 1px solid #e9ecef;
+            padding: 20px 15px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+            border: 1px solid rgba(0,0,0,0.06);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-box::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .stat-box:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
         }
 
         .stat-value {
-            font-size: 24px;
-            font-weight: bold;
-            margin-bottom: 5px;
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
 
         .stat-label {
-            font-size: 12px;
-            color: #666;
+            font-size: 11px;
+            color: #6c757d;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 1px;
+            font-weight: 600;
         }
 
         .identical { color: #28a745; }
@@ -462,16 +508,19 @@
         }
 
         .diff-section {
-            background: #f8f9fa;
-            border: 1px solid #e9ecef;
-            border-radius: 4px;
-            padding: 15px;
-            margin-bottom: 10px;
+            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+            border: 1px solid rgba(0,0,0,0.06);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
         }
 
         .diff-section h4 {
-            margin-bottom: 10px;
-            color: #333;
+            margin-bottom: 15px;
+            color: #2c3e50;
+            font-size: 16px;
+            font-weight: 600;
         }
 
         .diff-list {
@@ -783,7 +832,8 @@
                     .replace(/:\s*(\d+)/g, ': <span style="color: #b5cea8;">$1</span>');
             }
 
-            // Build differences summary
+            // Build differences summary (excluding ignored fields)
+            const ignoredFieldsForDiff = ['x-request-id', 'x-connector', 'x-flow'];
             let diffSummaryHtml = '';
             const allDiffs = [];
             
@@ -792,9 +842,12 @@
             if (!metadata.url.match) allDiffs.push(`URL: ${metadata.url.request1} → ${metadata.url.request2}`);
             if (!metadata.type.match) allDiffs.push(`Type: ${metadata.type.request1} → ${metadata.type.request2}`);
             
-            // Header differences
+            // Header differences (excluding ignored fields)
             headers.differences.forEach(diff => {
-                allDiffs.push(`Header ${diff.path.replace('headers.', '')}: "${diff.request1}" → "${diff.request2}"`);
+                const fieldName = diff.path.replace('headers.', '');
+                if (!ignoredFieldsForDiff.includes(fieldName)) {
+                    allDiffs.push(`Header ${fieldName}: "${diff.request1}" → "${diff.request2}"`);
+                }
             });
             
             // Body differences
@@ -862,10 +915,10 @@
 
                 <div class="json-viewer">
                     <div class="json-title">Request 1 - ${req1Source} ${result.pair.request1.headers['x-flow'] ? `Flow: ${result.pair.request1.headers['x-flow']}` : ''}</div>
-                    <div style="font-size: 11px; color: #999; margin-bottom: 10px; padding: 5px; background: rgba(255,255,255,0.1); border-radius: 3px;">
-                        <span style="background: rgba(220, 53, 69, 0.3); padding: 1px 4px; border-radius: 2px;">Red = Different</span>
-                        <span style="background: rgba(255, 193, 7, 0.3); padding: 1px 4px; border-radius: 2px; margin-left: 5px;">Yellow = Extra</span>
-                        <span style="background: rgba(108, 117, 125, 0.3); padding: 1px 4px; border-radius: 2px; margin-left: 5px;">Gray = Missing</span>
+                    <div style="font-size: 11px; color: #999; margin-bottom: 15px; padding: 10px; background: rgba(255,255,255,0.15); border-radius: 8px; backdrop-filter: blur(5px);">
+                        <span style="background: rgba(220, 53, 69, 0.4); padding: 3px 8px; border-radius: 6px; font-weight: 600;">Red = Different</span>
+                        <span style="background: rgba(255, 193, 7, 0.4); padding: 3px 8px; border-radius: 6px; margin-left: 8px; font-weight: 600;">Yellow = Extra</span>
+                        <span style="background: rgba(108, 117, 125, 0.4); padding: 3px 8px; border-radius: 6px; margin-left: 8px; font-weight: 600;">Gray = Missing</span>
                     </div>
                     <pre>${formatJSONWithComparison({
                         timestamp: result.pair.request1.timestamp,
@@ -877,10 +930,10 @@
                 </div>
                 <div class="json-viewer">
                     <div class="json-title">Request 2 - ${req2Source} ${result.pair.request2.headers['x-flow'] ? `Flow: ${result.pair.request2.headers['x-flow']}` : ''}</div>
-                    <div style="font-size: 11px; color: #999; margin-bottom: 10px; padding: 5px; background: rgba(255,255,255,0.1); border-radius: 3px;">
-                        <span style="background: rgba(220, 53, 69, 0.3); padding: 1px 4px; border-radius: 2px;">Red = Different</span>
-                        <span style="background: rgba(255, 193, 7, 0.3); padding: 1px 4px; border-radius: 2px; margin-left: 5px;">Yellow = Extra</span>
-                        <span style="background: rgba(108, 117, 125, 0.3); padding: 1px 4px; border-radius: 2px; margin-left: 5px;">Gray = Missing</span>
+                    <div style="font-size: 11px; color: #999; margin-bottom: 15px; padding: 10px; background: rgba(255,255,255,0.15); border-radius: 8px; backdrop-filter: blur(5px);">
+                        <span style="background: rgba(220, 53, 69, 0.4); padding: 3px 8px; border-radius: 6px; font-weight: 600;">Red = Different</span>
+                        <span style="background: rgba(255, 193, 7, 0.4); padding: 3px 8px; border-radius: 6px; margin-left: 8px; font-weight: 600;">Yellow = Extra</span>
+                        <span style="background: rgba(108, 117, 125, 0.4); padding: 3px 8px; border-radius: 6px; margin-left: 8px; font-weight: 600;">Gray = Missing</span>
                     </div>
                     <pre>${formatJSONWithComparison({
                         timestamp: result.pair.request2.timestamp,
