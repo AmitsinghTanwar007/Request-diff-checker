@@ -8,6 +8,9 @@ const paymentRequests = [];
 const requestPairs = []; // Store pairs of requests for comparison
 const pendingRequestsByRequestId = new Map(); // Store requests waiting for their pair by x-request-id
 
+// Temporary storage for all messages (for analysis)
+const allMessages = [];
+
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(express.text());
@@ -165,6 +168,50 @@ app.all('/receive', (req, res) => {
   const timestamp = new Date().toISOString();
   const isHyperSwitch = req.headers.via === 'HyperSwitch';
   
+  // ENHANCED LOGGING: Capture all HyperSwitch messages for analysis
+  if (isHyperSwitch) {
+    const xSource = req.headers['x-source'];
+    const xRequestId = req.headers['x-request-id'];
+    const xConnector = req.headers['x-connector'];
+    const xFlow = req.headers['x-flow'];
+    
+    console.log('\n' + '🔍'.repeat(80));
+    console.log('🔍 ENHANCED ANALYSIS LOGGING');
+    console.log('🔍'.repeat(80));
+    console.log(`🔍 Message Type Detected: ${messageType}`);
+    console.log(`🔍 x-source: ${xSource || 'NOT PRESENT'}`);
+    console.log(`🔍 x-request-id: ${xRequestId || 'NOT PRESENT'}`);
+    console.log(`🔍 x-connector: ${xConnector || 'NOT PRESENT'}`);
+    console.log(`🔍 x-flow: ${xFlow || 'NOT PRESENT'}`);
+    console.log(`🔍 via: ${req.headers.via || 'NOT PRESENT'}`);
+    console.log(`🔍 Content-Type: ${req.headers['content-type'] || 'NOT PRESENT'}`);
+    console.log(`🔍 Method: ${req.method}`);
+    console.log(`🔍 URL: ${req.url}`);
+    
+    // Store ALL HyperSwitch messages temporarily for analysis
+    const messageData = {
+      id: generateRequestId(req.body, req.headers),
+      timestamp,
+      type: messageType,
+      headers: req.headers,
+      body: req.body,
+      method: req.method,
+      url: req.url,
+      source: detectRequestSource(req.headers),
+      paired: false,
+      // Analysis fields
+      hasXSource: !!xSource,
+      xSourceValue: xSource,
+      hasXRequestId: !!xRequestId,
+      xRequestIdValue: xRequestId
+    };
+    
+    allMessages.push(messageData);
+    console.log(`🔍 Stored in allMessages array. Total messages: ${allMessages.length}`);
+    console.log(`🔍 Source detected as: ${messageData.source}`);
+    console.log('🔍'.repeat(80) + '\n');
+  }
+  
   // Store payment requests logic - only for HyperSwitch payment requests
   if (isHyperSwitch && messageType === 'PAYMENT REQUEST') {
     const requestId = generateRequestId(req.body, req.headers);
@@ -293,7 +340,8 @@ app.delete('/api/clear', (req, res) => {
   paymentRequests.length = 0;
   requestPairs.length = 0;
   pendingRequestsByRequestId.clear();
-  console.log('🧹 All data cleared');
+  allMessages.length = 0; // Clear analysis messages too
+  console.log('🧹 All data cleared (including analysis messages)');
   res.json({ 
     message: 'All data cleared successfully',
     timestamp: new Date().toISOString()
@@ -319,6 +367,24 @@ app.get('/api/stats', (req, res) => {
     totalPairs: requestPairs.length,
     unpairedRequests: paymentRequests.filter(req => !req.paired).length,
     comparedPairs: requestPairs.filter(p => p.compared).length
+  });
+});
+
+// Get all captured messages for analysis
+app.get('/api/messages', (req, res) => {
+  res.json({
+    totalMessages: allMessages.length,
+    messages: allMessages,
+    analysis: {
+      messagesWithXSource: allMessages.filter(m => m.hasXSource).length,
+      messagesWithoutXSource: allMessages.filter(m => !m.hasXSource).length,
+      messageTypes: [...new Set(allMessages.map(m => m.type))],
+      uniqueRequestIds: [...new Set(allMessages.map(m => m.xRequestIdValue).filter(Boolean))],
+      sourceDistribution: {
+        UCS: allMessages.filter(m => m.source === 'UCS').length,
+        HyperSwitch: allMessages.filter(m => m.source === 'HyperSwitch').length
+      }
+    }
   });
 });
 
