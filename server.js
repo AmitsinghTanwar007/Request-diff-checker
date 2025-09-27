@@ -1,7 +1,27 @@
 const express = require('express');
 const path = require('path');
+const redis = require('redis');
 const app = express();
 const PORT = 9000;
+
+// Redis client setup
+const redisClient = redis.createClient({
+  host: 'localhost',
+  port: 6379
+});
+
+redisClient.on('error', (err) => {
+  console.log('Redis Client Error:', err);
+});
+
+redisClient.on('connect', () => {
+  console.log('✅ Connected to Redis');
+});
+
+// Connect to Redis
+redisClient.connect().catch(err => {
+  console.log('Failed to connect to Redis:', err);
+});
 
 // Store for payment requests
 const paymentRequests = [];
@@ -10,6 +30,112 @@ const pendingRequestsByRequestId = new Map(); // Store requests waiting for thei
 
 // Temporary storage for all messages (for analysis)
 const allMessages = [];
+
+// Async polling function for non-blocking response waiting
+async function startAsyncPolling(requestId, res) {
+  let attempts = 0;
+  const maxAttempts = 5; // 5 seconds / 1 second intervals
+  
+  console.log(`🔄 Starting async polling for ${requestId} (checking every 1s for 5s)`);
+  
+  const pollInterval = setInterval(async () => {
+    attempts++;
+    console.log(`🔍 Polling attempt ${attempts}/5 for ${requestId}`);
+    
+    try {
+      // Check Redis for response
+      const responseData = await getRequestResponseFromRedis(requestId);
+      if (responseData && responseData.hsResponse) {
+        clearInterval(pollInterval);
+        
+        // Validate x-request-id
+        const responseXRequestId = responseData.hsResponse.headers['x-request-id'];
+        if (responseXRequestId === requestId) {
+          console.log(`✅ Response found and validated for ${requestId} after ${attempts}s`);
+          return res.status(responseData.hsResponse.statusCode)
+                    .set(responseData.hsResponse.headers)
+                    .json(responseData.hsResponse.body);
+        } else {
+          console.log(`❌ x-request-id mismatch for ${requestId}`);
+          return res.status(500).json({ 
+            error: "Response x-request-id mismatch", 
+            requestId, 
+            responseId: responseXRequestId 
+          });
+        }
+      }
+      
+      // Timeout after 5 attempts (5 seconds)
+      if (attempts >= maxAttempts) {
+        clearInterval(pollInterval);
+        console.log(`⏰ Polling timeout for ${requestId} after ${attempts} attempts`);
+        return res.status(408).json({ 
+          error: "Response timeout", 
+          requestId,
+          pollingAttempts: attempts 
+        });
+      }
+    } catch (error) {
+      clearInterval(pollInterval);
+      console.log(`❌ Polling error for ${requestId}:`, error.message);
+      return res.status(500).json({ 
+        error: "Polling error", 
+        requestId,
+        details: error.message 
+      });
+    }
+  }, 1000); // Check every 1 second
+}
+
+// Redis storage functions
+async function storeRequestResponseInRedis(requestId, hsRequest, hsResponse) {
+  try {
+    const data = {
+      requestId: requestId,
+      timestamp: new Date().toISOString(),
+      hsRequest: hsRequest,
+      hsResponse: hsResponse,
+      stored_at: Date.now()
+    };
+    
+    await redisClient.setEx(`req:${requestId}`, 3600, JSON.stringify(data)); // Expire in 1 hour
+    console.log(`💾 Stored request-response pair in Redis for ${requestId}`);
+  } catch (error) {
+    console.log(`❌ Redis storage error for ${requestId}:`, error.message);
+  }
+}
+
+async function getRequestResponseFromRedis(requestId) {
+  try {
+    const data = await redisClient.get(`req:${requestId}`);
+    if (data) {
+      return JSON.parse(data);
+    }
+    return null;
+  } catch (error) {
+    console.log(`❌ Redis retrieval error for ${requestId}:`, error.message);
+    return null;
+  }
+}
+
+async function getAllStoredRequestsFromRedis() {
+  try {
+    const keys = await redisClient.keys('req:*');
+    const results = [];
+    
+    for (const key of keys) {
+      const data = await redisClient.get(key);
+      if (data) {
+        results.push(JSON.parse(data));
+      }
+    }
+    
+    return results.sort((a, b) => b.stored_at - a.stored_at); // Latest first
+  } catch (error) {
+    console.log(`❌ Redis get all error:`, error.message);
+    return [];
+  }
+}
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
@@ -86,7 +212,12 @@ function generateRequestId(body, headers) {
   return `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
-function detectRequestSource(headers) {
+function detectRequestSource(headers, messageType = null, body = null) {
+  // For REQUEST-RESPONSE PAIR messages, this is always from HyperSwitch
+  if (messageType === 'REQUEST-RESPONSE PAIR') {
+    return 'HyperSwitch';
+  }
+  
   // Check x-source header to determine source
   const xSource = headers['x-source'];
   if (xSource) {
@@ -157,7 +288,7 @@ function createRequestPairByRequestId(newRequest) {
 
 // Removed fallback pairing - only pair by x-request-id
 
-app.all('/receive', (req, res) => {
+app.all('/receive', async (req, res) => {
   const messageType = detectMessageType(req.body, req.headers, req.method);
   const typeEmoji = messageType === 'REQUEST' ? '📤' : 
                    messageType === 'RESPONSE' ? '📥' : 
@@ -168,54 +299,86 @@ app.all('/receive', (req, res) => {
   const timestamp = new Date().toISOString();
   const isHyperSwitch = req.headers.via === 'HyperSwitch';
   
-  // ENHANCED LOGGING: Capture all HyperSwitch messages for analysis
-  if (isHyperSwitch) {
-    const xSource = req.headers['x-source'];
+  // Store messages for analysis (exclude UCS requests with response objects to avoid circular refs)
+  if ((isHyperSwitch || messageType === 'REQUEST-RESPONSE PAIR') && 
+      !(messageType === 'PAYMENT REQUEST' && req.headers['x-source'] === 'connector-service')) {
+    allMessages.push({
+      timestamp,
+      type: messageType,
+      headers: req.headers,
+      body: req.body,
+      method: req.method,
+      url: req.url
+    });
+  }
+  
+  // Handle UCS requests - check Redis first, then async polling
+  if (isHyperSwitch && messageType === 'PAYMENT REQUEST' && req.headers['x-source'] === 'connector-service') {
+    const requestId = generateRequestId(req.body, req.headers);
     const xRequestId = req.headers['x-request-id'];
-    const xConnector = req.headers['x-connector'];
-    const xFlow = req.headers['x-flow'];
     
-    console.log('\n' + '🔍'.repeat(80));
-    console.log('🔍 ENHANCED ANALYSIS LOGGING');
-    console.log('🔍'.repeat(80));
-    console.log(`🔍 Message Type Detected: ${messageType}`);
-    console.log(`🔍 x-source: ${xSource || 'NOT PRESENT'}`);
-    console.log(`🔍 x-request-id: ${xRequestId || 'NOT PRESENT'}`);
-    console.log(`🔍 x-connector: ${xConnector || 'NOT PRESENT'}`);
-    console.log(`🔍 x-flow: ${xFlow || 'NOT PRESENT'}`);
-    console.log(`🔍 via: ${req.headers.via || 'NOT PRESENT'}`);
-    console.log(`🔍 Content-Type: ${req.headers['content-type'] || 'NOT PRESENT'}`);
-    console.log(`🔍 Method: ${req.method}`);
-    console.log(`🔍 URL: ${req.url}`);
+    console.log(`📨 UCS request received for ${xRequestId}`);
+    console.log('\n' + '🔍 COMPLETE UCS REQUEST DATA:');
+    console.log('='.repeat(60));
+    console.log('📋 METHOD:', req.method);
+    console.log('🌐 URL:', req.url);
+    console.log('📅 TIMESTAMP:', timestamp);
+    console.log('\n📤 HEADERS (Complete):');
+    console.log(JSON.stringify(req.headers, null, 2));
+    console.log('\n📦 BODY (Complete):');
+    console.log(JSON.stringify(req.body, null, 2));
+    console.log('='.repeat(60) + '\n');
     
-    // Store ALL HyperSwitch messages temporarily for analysis
-    const messageData = {
-      id: generateRequestId(req.body, req.headers),
+    // 1. Check Redis immediately for existing response
+    try {
+      const existingResponse = await getRequestResponseFromRedis(xRequestId);
+      if (existingResponse && existingResponse.hsResponse) {
+        console.log(`🚀 Found existing response in Redis for ${xRequestId}, sending immediately`);
+        
+        // Validate x-request-id
+        const responseXRequestId = existingResponse.hsResponse.headers['x-request-id'];
+        if (responseXRequestId === xRequestId) {
+          return res.status(existingResponse.hsResponse.statusCode)
+                    .set(existingResponse.hsResponse.headers)
+                    .json(existingResponse.hsResponse.body);
+        } else {
+          console.log(`❌ Cached response x-request-id mismatch for ${xRequestId}`);
+          return res.status(500).json({ 
+            error: "Cached response x-request-id mismatch", 
+            requestId: xRequestId,
+            responseId: responseXRequestId 
+          });
+        }
+      }
+    } catch (error) {
+      console.log(`⚠️ Redis check error for ${xRequestId}:`, error.message);
+    }
+    
+    // 2. Store UCS request for pairing (simplified - no response object)
+    const requestData = {
+      id: requestId,
       timestamp,
       type: messageType,
       headers: req.headers,
       body: req.body,
       method: req.method,
       url: req.url,
-      source: detectRequestSource(req.headers),
-      paired: false,
-      // Analysis fields
-      hasXSource: !!xSource,
-      xSourceValue: xSource,
-      hasXRequestId: !!xRequestId,
-      xRequestIdValue: xRequestId
+      source: 'UCS',
+      paired: false
     };
     
-    allMessages.push(messageData);
-    console.log(`🔍 Stored in allMessages array. Total messages: ${allMessages.length}`);
-    console.log(`🔍 Source detected as: ${messageData.source}`);
-    console.log('🔍'.repeat(80) + '\n');
+    paymentRequests.push(requestData);
+    console.log(`📝 Stored UCS request, starting async polling for ${xRequestId}`);
+    
+    // 3. Start non-blocking async polling
+    startAsyncPolling(xRequestId, res);
+    return; // Non-blocking - polling handles response
   }
   
-  // Store payment requests logic - only for HyperSwitch payment requests
+  // Store other HyperSwitch PAYMENT REQUEST messages 
   if (isHyperSwitch && messageType === 'PAYMENT REQUEST') {
     const requestId = generateRequestId(req.body, req.headers);
-    const source = detectRequestSource(req.headers);
+    const source = detectRequestSource(req.headers, messageType, req.body);
     
     const requestData = {
       id: requestId,
@@ -230,67 +393,206 @@ app.all('/receive', (req, res) => {
     };
     
     paymentRequests.push(requestData);
-    console.log(`📝 Stored payment request with ID: ${requestId} from ${source}`);
+    console.log(`📝 Stored ${source} payment request with ID: ${requestId}`);
     console.log(`📊 Total requests stored: ${paymentRequests.length}`);
     
-    // ONLY create pairs based on x-request-id matching
-    const newPair = createRequestPairByRequestId(requestData);
-    
-    if (newPair) {
-      console.log(`🎯 New pair available for comparison: ${newPair.id}`);
+    // Check for pairing: UCS request vs HyperSwitch request
+    const xRequestId = req.headers['x-request-id'];
+    if (xRequestId) {
+      const matchingRequest = paymentRequests.find(r => 
+        r.headers['x-request-id'] === xRequestId && 
+        r.source !== source && 
+        !r.paired
+      );
+      
+      if (matchingRequest) {
+        console.log(`🎯 Found matching request pair! Creating comparison...`);
+        
+        // Determine which is UCS vs HyperSwitch
+        const ucsRequest = source === 'UCS' ? requestData : matchingRequest;
+        const hsRequest = source === 'HyperSwitch' ? requestData : matchingRequest;
+        
+        const pairId = `pair_${xRequestId}`;
+        const newPair = {
+          id: pairId,
+          xRequestId: xRequestId,
+          timestamp: new Date().toISOString(),
+          request1: ucsRequest,        // UCS request
+          request2: hsRequest,         // HyperSwitch request
+          xConnector: ucsRequest.headers['x-connector'] || hsRequest.headers['x-connector'] || 'unknown',
+          xFlow: ucsRequest.headers['x-flow'] || hsRequest.headers['x-flow'] || 'unknown',
+          compared: false,
+          responseSent: false
+        };
+        
+        requestPairs.push(newPair);
+        ucsRequest.paired = true;
+        hsRequest.paired = true;
+        
+        console.log(`✅ Pair created: ${pairId}`);
+        console.log(`🔄 UCS Request vs HyperSwitch Request comparison ready`);
+      } else {
+        console.log(`⏳ Request ${requestId} stored as pending for x-request-id: ${xRequestId}`);
+      }
     }
   }
   
-  console.log('\n' + '='.repeat(80));
-  console.log(`${typeEmoji} INCOMING ${messageType}`);
-  console.log('='.repeat(80));
-  
-  console.log(`🕒 Timestamp: ${timestamp}`);
-  console.log(`🌐 Method: ${req.method}`);
-  console.log(`📍 URL: ${req.url}`);
-  console.log(`🔗 Original URL: ${req.originalUrl}`);
-  console.log(`📡 Protocol: ${req.protocol}`);
-  console.log(`🏠 Host: ${req.get('host')}`);
-  console.log(`🛣️  Path: ${req.path}`);
-  console.log(`🏷️  Detected Type: ${messageType}`);
-  console.log(`🔄 Via HyperSwitch: ${isHyperSwitch ? 'Yes' : 'No'}`);
-  
-  console.log('\n📋 HEADERS:');
-  console.log('-'.repeat(40));
-  Object.entries(req.headers).forEach(([key, value]) => {
-    console.log(`  ${key}: ${value}`);
-  });
-  
-  console.log('\n🔍 QUERY PARAMETERS:');
-  console.log('-'.repeat(40));
-  if (Object.keys(req.query).length > 0) {
-    Object.entries(req.query).forEach(([key, value]) => {
-      console.log(`  ${key}: ${value}`);
-    });
-  } else {
-    console.log('  (none)');
+  // NEW: Handle REQUEST-RESPONSE PAIR messages from mitmproxy
+  if (messageType === 'REQUEST-RESPONSE PAIR') {
+    try {
+      // Extract x-request-id from the nested request headers (mitmproxy format)
+      const xRequestId = req.body.request?.headers?.['x-request-id'];
+      
+      if (xRequestId) {
+        console.log(`📥 Received REQUEST-RESPONSE PAIR for x-request-id: ${xRequestId}`);
+        console.log(`🔍 Processing mitmproxy request-response data...`);
+        
+        // Parse the nested request body (JSON string) - handle BOM
+        const hsRequest = JSON.parse(req.body.request.body);
+        const responseBodyClean = req.body.response.body.replace(/^\uFEFF/, ''); // Remove BOM
+        const hsResponse = JSON.parse(responseBodyClean);
+        
+        // Store clean request-response data in Redis
+        await storeRequestResponseInRedis(xRequestId, {
+          method: req.body.request.method,
+          url: req.body.request.url,
+          headers: req.body.request.headers,
+          body: hsRequest
+        }, {
+          statusCode: req.body.response.status_code,
+          headers: req.body.response.headers,
+          body: hsResponse
+        });
+        
+        // Find matching UCS request by x-request-id
+        const matchingUCSRequest = paymentRequests.find(r => 
+          r.headers['x-request-id'] === xRequestId && 
+          r.source === 'UCS' && 
+          !r.paired
+        );
+        
+        if (matchingUCSRequest) {
+          console.log(`🎯 Found matching UCS request! Creating comparison pair and sending response...`);
+          
+          // Create HyperSwitch request object from nested data with clean headers
+          const originalHeaders = req.body.request.headers;
+          const cleanHeaders = {
+            'content-type': originalHeaders['content-type'],
+            'content-length': originalHeaders['content-length'],
+            'x-connector': originalHeaders['x-connector'],
+            'x-flow': originalHeaders['x-flow'],
+            'x-request-id': originalHeaders['x-request-id'],
+            'via': originalHeaders['via']
+          };
+          
+          const hsRequestData = {
+            id: xRequestId,
+            timestamp: timestamp,
+            type: 'HYPERSWITCH_REQUEST',
+            headers: cleanHeaders,  // Use only the relevant gateway headers
+            body: hsRequest,
+            method: req.body.request.method,
+            url: req.body.request.url,
+            source: 'HyperSwitch',
+            paired: true
+          };
+          
+          // Create comparison pair (UCS request vs HyperSwitch request)
+          const pairId = `pair_${xRequestId}`;
+          const newPair = {
+            id: pairId,
+            xRequestId: xRequestId,
+            timestamp: new Date().toISOString(),
+            request1: matchingUCSRequest,        // UCS request
+            request2: hsRequestData,             // HyperSwitch request (from mitmproxy data)
+            xConnector: req.body.request.headers['x-connector'] || matchingUCSRequest.headers['x-connector'],
+            xFlow: req.body.request.headers['x-flow'] || matchingUCSRequest.headers['x-flow'],
+            compared: false,
+            responseSent: true,
+            sources: {
+              request1: 'UCS',
+              request2: 'HyperSwitch'
+            }
+          };
+          
+          requestPairs.push(newPair);
+          matchingUCSRequest.paired = true;
+          
+          console.log(`✅ Pair created: ${pairId} (UCS vs HyperSwitch request)`);
+          
+          // Store the HyperSwitch response
+          matchingUCSRequest.responseData = {
+            statusCode: req.body.response.status_code,
+            headers: req.body.response.headers,
+            body: hsResponse,
+            sentAt: new Date().toISOString()
+          };
+          
+          console.log(`📬 HyperSwitch response stored for UCS request: ${xRequestId}`);
+          console.log(`📊 Response Status: ${req.body.response.status_code}`);
+          
+          // Extract transaction status if available
+          if (hsResponse.transactionResponse) {
+            const txnStatus = hsResponse.transactionResponse.responseCode === '1' ? 'APPROVED' : 'DECLINED';
+            const txnId = hsResponse.transactionResponse.transId;
+            console.log(`💳 Transaction Status: ${txnStatus}`);
+            console.log(`🔑 Transaction ID: ${txnId || 'N/A'}`);
+          }
+          
+          // Send response immediately to UCS if response object is available
+          if (matchingUCSRequest.responseObject && !matchingUCSRequest.responseSent) {
+            // Validate that response x-request-id matches UCS x-request-id
+            const responseXRequestId = matchingUCSRequest.responseData.headers['x-request-id'];
+            const ucsXRequestId = matchingUCSRequest.headers['x-request-id'];
+            
+            if (responseXRequestId === ucsXRequestId) {
+              console.log(`🚀 Sending immediate response to UCS for ${xRequestId} (x-request-id validated)`);
+              matchingUCSRequest.responseObject
+                .status(matchingUCSRequest.responseData.statusCode)
+                .set(matchingUCSRequest.responseData.headers)
+                .json(matchingUCSRequest.responseData.body);
+              matchingUCSRequest.responseSent = true;
+            } else {
+              console.log(`❌ x-request-id mismatch! UCS: ${ucsXRequestId}, Response: ${responseXRequestId}`);
+              matchingUCSRequest.responseObject
+                .status(500)
+                .json({ error: "Response x-request-id mismatch", ucsId: ucsXRequestId, responseId: responseXRequestId });
+              matchingUCSRequest.responseSent = true;
+            }
+          }
+          
+          console.log(`🎯 Pair ready for comparison in UI: ${pairId}`);
+          
+        } else {
+          console.log(`⚠️ No matching UCS request found for x-request-id: ${xRequestId}`);
+          
+          // Debug: Show available UCS requests
+          const ucsRequests = paymentRequests.filter(r => r.source === 'UCS' && !r.paired);
+          console.log(`🔍 Available UCS requests:`, ucsRequests.map(r => r.headers['x-request-id']));
+        }
+        
+      } else {
+        console.log(`⚠️ REQUEST-RESPONSE PAIR missing x-request-id in nested headers`);
+      }
+      
+    } catch (error) {
+      console.log(`❌ Error parsing REQUEST-RESPONSE PAIR: ${error.message}`);
+    }
   }
   
-  console.log('\n📦 BODY:');
-  console.log('-'.repeat(40));
-  if (req.body && Object.keys(req.body).length > 0) {
-    console.log(JSON.stringify(req.body, null, 2));
-  } else if (req.body) {
-    console.log(req.body);
-  } else {
-    console.log('  (empty)');
-  }
+  console.log('\n' + '='.repeat(50));
+  console.log(`INCOMING: ${messageType}`);
+  console.log(`Method: ${req.method} | URL: ${req.url}`);
+  console.log(`Timestamp: ${timestamp}`);
+  console.log('='.repeat(50));
   
-  console.log('\n🌍 CLIENT INFO:');
-  console.log('-'.repeat(40));
-  console.log(`  IP: ${req.ip}`);
-  console.log(`  User-Agent: ${req.get('User-Agent') || 'Unknown'}`);
-  console.log(`  Content-Type: ${req.get('Content-Type') || 'Not specified'}`);
-  console.log(`  Content-Length: ${req.get('Content-Length') || 'Not specified'}`);
+  console.log('\nHEADERS:');
+  console.log(JSON.stringify(req.headers, null, 2));
   
-  console.log('\n' + '='.repeat(80));
-  console.log(`✅ ${messageType} LOGGED`);
-  console.log('='.repeat(80) + '\n');
+  console.log('\nBODY:');
+  console.log(JSON.stringify(req.body, null, 2));
+  
+  console.log('\n' + '='.repeat(50) + '\n');
   
   res.status(200).json({
     message: `${messageType} received and logged successfully`,
@@ -305,7 +607,19 @@ app.all('/receive', (req, res) => {
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/api/pairs', (req, res) => {
-  res.json(requestPairs);
+  // Clean the pairs data to remove circular references
+  const cleanPairs = requestPairs.map(pair => ({
+    ...pair,
+    request1: pair.request1 ? {
+      ...pair.request1,
+      responseObject: undefined  // Remove circular reference
+    } : pair.request1,
+    request2: pair.request2 ? {
+      ...pair.request2,
+      responseObject: undefined  // Remove circular reference
+    } : pair.request2
+  }));
+  res.json(cleanPairs);
 });
 
 app.get('/api/pairs/:id', (req, res) => {
@@ -370,6 +684,47 @@ app.get('/api/stats', (req, res) => {
   });
 });
 
+// Redis API endpoints
+app.get('/api/redis/requests', async (req, res) => {
+  try {
+    const allRequests = await getAllStoredRequestsFromRedis();
+    res.json({
+      total: allRequests.length,
+      requests: allRequests
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to retrieve requests from Redis' });
+  }
+});
+
+app.get('/api/redis/requests/:requestId', async (req, res) => {
+  try {
+    const data = await getRequestResponseFromRedis(req.params.requestId);
+    if (data) {
+      res.json(data);
+    } else {
+      res.status(404).json({ error: 'Request not found in Redis' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to retrieve request from Redis' });
+  }
+});
+
+app.delete('/api/redis/clear', async (req, res) => {
+  try {
+    const keys = await redisClient.keys('req:*');
+    if (keys.length > 0) {
+      await redisClient.del(keys);
+    }
+    res.json({ 
+      message: `Cleared ${keys.length} requests from Redis`,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to clear Redis data' });
+  }
+});
+
 // Get all captured messages for analysis
 app.get('/api/messages', (req, res) => {
   res.json({
@@ -403,8 +758,8 @@ function generateRequestComparisonReport(request1, request2) {
     },
     metadata: {
       method: { request1: request1.method, request2: request2.method, match: request1.method === request2.method },
-      url: { request1: request1.url, request2: request2.url, match: request1.url === request2.url },
-      type: { request1: request1.type, request2: request2.type, match: request1.type === request2.type }
+      url: { request1: request1.url, request2: request2.url, match: true }, // Always ignore URL differences
+      type: { request1: request1.type, request2: request2.type, match: true } // Always ignore Type differences
     },
     headers: {
       differences: [],
@@ -440,7 +795,7 @@ function generateRequestComparisonReport(request1, request2) {
   report.headers.onlyInRequest2 = headerComparison.onlyInSecond;
   
   // Identify matching headers (excluding ignored fields)
-  const ignoredFields = ['x-request-id', 'x-connector', 'x-flow', 'x-source'];
+  const ignoredFields = ['x-request-id', 'x-connector', 'x-flow', 'x-source', 'connection', 'user-agent', 'accept', 'accept-encoding', 'host'];
   Object.keys(request1.headers || {}).forEach(key => {
     if (!ignoredFields.includes(key) && (request2.headers || {})[key] === request1.headers[key]) {
       report.headers.matching.push({
@@ -573,7 +928,7 @@ function deepCompare(obj1, obj2, path) {
   };
   
   // Fields to ignore in comparison
-  const ignoredFields = ['x-request-id', 'x-connector', 'x-flow', 'x-source'];
+  const ignoredFields = ['x-request-id', 'x-connector', 'x-flow', 'x-source', 'connection', 'user-agent', 'accept', 'accept-encoding', 'host'];
   
   // Get all unique keys from both objects, excluding ignored fields
   const allKeys = new Set([
