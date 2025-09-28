@@ -1,0 +1,23 @@
+{
+  "name": "request-diff-checker",
+  "version": "1.0.0",
+  "description": "Check diff between two HTTP calls with making only one call to the server but checking the second one also",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "http",
+    "diff",
+    "request",
+    "checker",
+    "api"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.6.0",
+    "diff": "^5.1.0"
+  }
+}
