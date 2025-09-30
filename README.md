@@ -35,6 +35,10 @@ brew install mitmproxy
 ```bash
 mitmweb -s ~/Documents/<your-folder-name>/forward_code.py --listen-port 8081 --web-port 8082
 ```
+Certificates
+```bash
+security add-trusted-cert -d -r trustRoot -k ~/Library/Keychains/login.keychain-db ~/.mitmproxy/mitmproxy-ca-cert.pem
+```
 
 what the process of testing 
 1) send a req from hyperswitch using postman and see mitmproxy at port localhost:8082 and then you can see the req-diff on localhost:9000
