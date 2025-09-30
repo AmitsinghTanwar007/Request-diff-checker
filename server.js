@@ -31,6 +31,76 @@ const pendingRequestsByRequestId = new Map(); // Store requests waiting for thei
 // Temporary storage for all messages (for analysis)
 const allMessages = [];
 
+// Flow mapping configuration - UCS flow name -> HyperSwitch flow name
+const flowMappings = {
+  'authorize': 'Authorize',
+  'capture': 'Capture', 
+  'refund': 'Refund',
+  'void': 'Void',
+  'payment': 'Payment'
+};
+
+// Flow tracking system - track all flows by request-id
+const flowTracker = new Map(); // requestId -> { ucs: {...}, hyperswitch: {...}, paired: boolean }
+
+// Flow mapping utility functions
+function normalizeFlowName(flowName) {
+  return flowName ? flowName.toLowerCase().trim() : '';
+}
+
+function getFlowMapping(ucsFlow) {
+  const normalizedUcs = normalizeFlowName(ucsFlow);
+  return flowMappings[normalizedUcs] || ucsFlow; // Return original if no mapping found
+}
+
+function flowsMatch(ucsFlow, hsFlow) {
+  if (!ucsFlow || !hsFlow) return false;
+  
+  // Direct case-insensitive match
+  if (normalizeFlowName(ucsFlow) === normalizeFlowName(hsFlow)) {
+    return true;
+  }
+  
+  // Check mapping
+  const mappedHsFlow = getFlowMapping(ucsFlow);
+  return normalizeFlowName(mappedHsFlow) === normalizeFlowName(hsFlow);
+}
+
+function updateFlowTracker(requestId, source, flow, timestamp) {
+  if (!flowTracker.has(requestId)) {
+    flowTracker.set(requestId, {
+      ucs: null,
+      hyperswitch: null,
+      paired: false,
+      flowsMatch: false,
+      lastUpdated: timestamp
+    });
+  }
+  
+  const tracker = flowTracker.get(requestId);
+  
+  if (source === 'UCS') {
+    tracker.ucs = { flow, timestamp, status: 'received' };
+  } else if (source === 'HyperSwitch') {
+    tracker.hyperswitch = { flow, timestamp, status: 'received' };
+  }
+  
+  // Check if both flows are present and if they match
+  if (tracker.ucs && tracker.hyperswitch) {
+    tracker.flowsMatch = flowsMatch(tracker.ucs.flow, tracker.hyperswitch.flow);
+    tracker.paired = tracker.flowsMatch;
+  }
+  
+  tracker.lastUpdated = timestamp;
+  
+  console.log(`🔍 Flow Tracker Update:`);
+  console.log(`📋 Request ID: ${requestId}`);
+  console.log(`📤 UCS Flow: ${tracker.ucs ? tracker.ucs.flow : 'MISSING'}`);
+  console.log(`📥 HS Flow: ${tracker.hyperswitch ? tracker.hyperswitch.flow : 'MISSING'}`);
+  console.log(`✅ Flows Match: ${tracker.flowsMatch ? 'YES' : 'NO'}`);
+  console.log(`👥 Status: ${tracker.paired ? 'PAIRED' : 'UNPAIRED'}`);
+}
+
 // Async polling function for non-blocking response waiting
 async function startAsyncPolling(requestId, res) {
   let attempts = 0;
@@ -329,7 +399,82 @@ app.all('/receive', async (req, res) => {
     console.log(JSON.stringify(req.body, null, 2));
     console.log('='.repeat(60) + '\n');
     
-    // 1. Check Redis immediately for existing response
+    // 1. Store UCS request for pairing FIRST (simplified - no response object)
+    const requestData = {
+      id: requestId,
+      timestamp,
+      type: messageType,
+      headers: req.headers,
+      body: req.body,
+      method: req.method,
+      url: req.url,
+      source: 'UCS',
+      paired: false
+    };
+    
+    paymentRequests.push(requestData);
+    
+    // 1.1. Update flow tracker for UCS request
+    const ucsFlow = req.headers['x-flow'];
+    updateFlowTracker(xRequestId, 'UCS', ucsFlow, timestamp);
+    
+    // 1.2. Check if HyperSwitch request-response pair already exists and create UI comparison pair
+    try {
+      const existingHSData = await getRequestResponseFromRedis(xRequestId);
+      if (existingHSData && existingHSData.hsRequest) {
+        const hsRequest = existingHSData.hsRequest;
+        const hsFlow = hsRequest.headers['x-flow'];
+        
+        // Check if flows are compatible
+        if (flowsMatch(ucsFlow, hsFlow)) {
+          console.log(`🎯 Creating UI comparison pair: UCS request vs existing HS request`);
+          console.log(`🌊 UCS Flow: ${ucsFlow} | HS Flow: ${hsFlow}`);
+          console.log(`✅ Flow Match: ${flowsMatch(ucsFlow, hsFlow)}`);
+          
+          // Create HyperSwitch request data for comparison
+          const hsRequestData = {
+            id: xRequestId,
+            timestamp: existingHSData.timestamp,
+            type: 'HYPERSWITCH_REQUEST',
+            headers: hsRequest.headers,
+            body: hsRequest.body,
+            method: hsRequest.method,
+            url: hsRequest.url,
+            source: 'HyperSwitch',
+            paired: true
+          };
+          
+          // Create comparison pair for UI
+          const pairId = `pair_${xRequestId}`;
+          const newPair = {
+            id: pairId,
+            xRequestId: xRequestId,
+            timestamp: new Date().toISOString(),
+            request1: requestData,        // UCS request
+            request2: hsRequestData,      // HyperSwitch request
+            xConnector: hsRequest.headers['x-connector'] || requestData.headers['x-connector'],
+            xFlow: hsRequest.headers['x-flow'] || requestData.headers['x-flow'],
+            compared: false,
+            responseSent: false,
+            sources: {
+              request1: 'UCS',
+              request2: 'HyperSwitch'
+            }
+          };
+          
+          requestPairs.push(newPair);
+          requestData.paired = true;
+          
+          console.log(`✅ UI Comparison pair created: ${pairId} (UCS vs HyperSwitch)`);
+        } else {
+          console.log(`⚠️ UCS flow '${ucsFlow}' incompatible with HS flow '${hsFlow}' - no UI pair created`);
+        }
+      }
+    } catch (error) {
+      console.log(`⚠️ Error checking for existing HS data: ${error.message}`);
+    }
+    
+    // 2. NOW check Redis for existing response and send it
     try {
       const existingResponse = await getRequestResponseFromRedis(xRequestId);
       if (existingResponse && existingResponse.hsResponse) {
@@ -354,20 +499,6 @@ app.all('/receive', async (req, res) => {
       console.log(`⚠️ Redis check error for ${xRequestId}:`, error.message);
     }
     
-    // 2. Store UCS request for pairing (simplified - no response object)
-    const requestData = {
-      id: requestId,
-      timestamp,
-      type: messageType,
-      headers: req.headers,
-      body: req.body,
-      method: req.method,
-      url: req.url,
-      source: 'UCS',
-      paired: false
-    };
-    
-    paymentRequests.push(requestData);
     console.log(`📝 Stored UCS request, starting async polling for ${xRequestId}`);
     
     // 3. Start non-blocking async polling
@@ -398,19 +529,32 @@ app.all('/receive', async (req, res) => {
     
     // Check for pairing: UCS request vs HyperSwitch request
     const xRequestId = req.headers['x-request-id'];
+    const currentFlow = req.headers['x-flow'];
+    
+    // Update flow tracker for this request
+    updateFlowTracker(xRequestId, source, currentFlow, timestamp);
+    
     if (xRequestId) {
-      const matchingRequest = paymentRequests.find(r => 
-        r.headers['x-request-id'] === xRequestId && 
-        r.source !== source && 
-        !r.paired
-      );
+      const matchingRequest = paymentRequests.find(r => {
+        const matchingFlow = r.headers['x-flow'];
+        return r.headers['x-request-id'] === xRequestId && 
+               r.source !== source && 
+               !r.paired &&
+               flowsMatch(
+                 source === 'UCS' ? currentFlow : matchingFlow,
+                 source === 'HyperSwitch' ? currentFlow : matchingFlow
+               );
+      });
       
       if (matchingRequest) {
-        console.log(`🎯 Found matching request pair! Creating comparison...`);
+        console.log(`🎯 Found matching request pair with compatible flows! Creating comparison...`);
         
         // Determine which is UCS vs HyperSwitch
         const ucsRequest = source === 'UCS' ? requestData : matchingRequest;
         const hsRequest = source === 'HyperSwitch' ? requestData : matchingRequest;
+        
+        console.log(`🌊 UCS Flow: ${ucsRequest.headers['x-flow']} | HS Flow: ${hsRequest.headers['x-flow']}`);
+        console.log(`✅ Flow Match: ${flowsMatch(ucsRequest.headers['x-flow'], hsRequest.headers['x-flow'])}`);
         
         const pairId = `pair_${xRequestId}`;
         const newPair = {
@@ -447,6 +591,10 @@ app.all('/receive', async (req, res) => {
         console.log(`📥 Received REQUEST-RESPONSE PAIR for x-request-id: ${xRequestId}`);
         console.log(`🔍 Processing mitmproxy request-response data...`);
         
+        // Update flow tracker for HyperSwitch request
+        const hsFlow = req.body.request.headers['x-flow'];
+        updateFlowTracker(xRequestId, 'HyperSwitch', hsFlow, timestamp);
+        
         // Parse the nested request body (JSON string) - handle BOM
         const hsRequest = JSON.parse(req.body.request.body);
         const responseBodyClean = req.body.response.body.replace(/^\uFEFF/, ''); // Remove BOM
@@ -464,15 +612,18 @@ app.all('/receive', async (req, res) => {
           body: hsResponse
         });
         
-        // Find matching UCS request by x-request-id
+        // Find matching UCS request by x-request-id and compatible flow
         const matchingUCSRequest = paymentRequests.find(r => 
           r.headers['x-request-id'] === xRequestId && 
           r.source === 'UCS' && 
-          !r.paired
+          !r.paired &&
+          flowsMatch(r.headers['x-flow'], hsFlow)
         );
         
         if (matchingUCSRequest) {
-          console.log(`🎯 Found matching UCS request! Creating comparison pair and sending response...`);
+          console.log(`🎯 Found matching UCS request with compatible flows! Creating comparison pair and sending response...`);
+          console.log(`🌊 UCS Flow: ${matchingUCSRequest.headers['x-flow']} | HS Flow: ${hsFlow}`);
+          console.log(`✅ Flow Match: ${flowsMatch(matchingUCSRequest.headers['x-flow'], hsFlow)}`);
           
           // Create HyperSwitch request object from nested data with clean headers
           const originalHeaders = req.body.request.headers;
@@ -671,6 +822,95 @@ app.delete('/api/pairs/clear', (req, res) => {
   res.json({ 
     message: 'All pairs cleared successfully',
     timestamp: new Date().toISOString()
+  });
+});
+
+// Flow tracking and mapping API endpoints
+app.get('/api/flow-mappings', (req, res) => {
+  res.json({
+    mappings: flowMappings,
+    count: Object.keys(flowMappings).length
+  });
+});
+
+app.put('/api/flow-mappings', (req, res) => {
+  const { mappings } = req.body;
+  if (mappings && typeof mappings === 'object') {
+    Object.assign(flowMappings, mappings);
+    console.log('🔄 Flow mappings updated:', mappings);
+    res.json({ 
+      message: 'Flow mappings updated successfully',
+      currentMappings: flowMappings
+    });
+  } else {
+    res.status(400).json({ error: 'Invalid mappings format' });
+  }
+});
+
+app.get('/api/flow-report', (req, res) => {
+  const now = Date.now();
+  const trackerArray = Array.from(flowTracker.entries()).map(([requestId, data]) => ({
+    requestId,
+    ...data,
+    ageMinutes: Math.round((now - new Date(data.lastUpdated).getTime()) / 60000)
+  }));
+  
+  const summary = {
+    totalRequestIds: trackerArray.length,
+    pairedRequests: trackerArray.filter(t => t.paired).length,
+    unpairedRequests: trackerArray.filter(t => !t.paired).length,
+    missingUCSFlows: trackerArray.filter(t => !t.ucs && t.hyperswitch).length,
+    missingHSFlows: trackerArray.filter(t => t.ucs && !t.hyperswitch).length,
+    flowMismatches: trackerArray.filter(t => t.ucs && t.hyperswitch && !t.flowsMatch).length,
+    onlyUCS: trackerArray.filter(t => t.ucs && !t.hyperswitch).length,
+    onlyHS: trackerArray.filter(t => !t.ucs && t.hyperswitch).length
+  };
+  
+  const unpaired = trackerArray.filter(t => !t.paired).map(t => ({
+    requestId: t.requestId,
+    ucsFlow: t.ucs?.flow || null,
+    hsFlow: t.hyperswitch?.flow || null,
+    missingFrom: !t.ucs ? 'UCS' : !t.hyperswitch ? 'HyperSwitch' : 'Both present but incompatible',
+    ageMinutes: t.ageMinutes,
+    lastUpdated: t.lastUpdated
+  }));
+  
+  const flowMismatches = trackerArray.filter(t => t.ucs && t.hyperswitch && !t.flowsMatch).map(t => ({
+    requestId: t.requestId,
+    ucsFlow: t.ucs.flow,
+    hsFlow: t.hyperswitch.flow,
+    canBeMapped: flowsMatch(t.ucs.flow, t.hyperswitch.flow),
+    ageMinutes: t.ageMinutes,
+    lastUpdated: t.lastUpdated
+  }));
+  
+  res.json({
+    summary,
+    allRequests: trackerArray,
+    unpaired,
+    flowMismatches,
+    currentMappings: flowMappings,
+    generatedAt: new Date().toISOString()
+  });
+});
+
+app.get('/api/missing-flows', (req, res) => {
+  const trackerArray = Array.from(flowTracker.entries()).map(([requestId, data]) => ({
+    requestId,
+    ...data
+  }));
+  
+  const missingFlows = trackerArray.filter(t => !t.paired);
+  
+  res.json({
+    count: missingFlows.length,
+    missing: missingFlows.map(t => ({
+      requestId: t.requestId,
+      ucsFlow: t.ucs?.flow || null,
+      hsFlow: t.hyperswitch?.flow || null,
+      missingFrom: !t.ucs ? 'UCS' : !t.hyperswitch ? 'HyperSwitch' : 'Incompatible flows',
+      lastUpdated: t.lastUpdated
+    }))
   });
 });
 
