@@ -33,7 +33,7 @@ npm start
 brew install mitmproxy
 ```
 ```bash
-mitmweb -s ~/Documents/<your-folder-name>/forward_code.py --listen-port 8081 --web-port 8082
+mitmweb -s forward_code.py --listen-port 8081 --web-port 8082
 ```
 Certificates
 ```bash
